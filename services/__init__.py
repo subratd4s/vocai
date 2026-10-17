@@ -1,1 +1,1 @@
-"""Boundaries for future external providers and file export."""
+"""LLM provider boundary and a placeholder for future file export."""

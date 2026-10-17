@@ -1,12 +1,14 @@
 """Exercise the real Streamlit UI and provider-independent data contracts."""
 
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from pydantic import ValidationError
 from streamlit.testing.v1 import AppTest
 
-from models.vocabulary_model import VocabularyAnalysisResult, VocabularyEntry
+from models.vocabulary_model import VocabularyAnalysisResult, VocabularyEntry, WordSelection
+from services.llm_service import LLMService, LLMServiceError
 from utils.helpers import count_words
 
 APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
@@ -40,16 +42,17 @@ def test_empty_submission(app, text):
     assert "Please enter" in app.warning[0].value
 
 
-def test_validation_edit_and_clear(app):
+def test_validation_edit_and_clear(app, monkeypatch):
+    request = Mock(return_value=WordSelection(identified_words=[]))
+    monkeypatch.setattr(LLMService, "request_structured", request)
     app.text_area[0].set_value("Reading builds vocabulary.").run()
     assert app.caption[0].value == "Word count: 3"
     app.button[0].click().run()
-    assert any(
-        item.value == "Input validated successfully. AI vocabulary analysis will be implemented in Phase 2."
-        for item in app.success
-    )
-    assert app.session_state.analysis_result is None
+    assert "No challenging vocabulary" in app.info[0].value
+    assert app.session_state.analysis_result is not None
     app.run()
+    app.button[0].click().run()
+    assert request.call_count == 1
     assert app.text_area[0].value == "Reading builds vocabulary."
     app.text_area[0].set_value("New passage").run()
     assert app.session_state.validation_status is None
@@ -59,6 +62,45 @@ def test_validation_edit_and_clear(app):
     assert app.text_area[0].value == ""
     assert app.caption[0].value == "Word count: 0"
     assert app.session_state.validation_status is None
+    assert app.session_state.analysis_result is None
+
+
+@pytest.mark.parametrize("setting, value", [(0, "Advanced"), (1, 5)])
+def test_settings_invalidate_results(app, monkeypatch, setting, value):
+    request = Mock(return_value=WordSelection(identified_words=[{
+        "word": "nuanced", "difficulty_level": "Intermediate",
+        "original_context": "A nuanced account.",
+    }]))
+    monkeypatch.setattr(LLMService, "request_structured", request)
+    assert app.selectbox[0].value == "Intermediate"
+    assert app.selectbox[1].value == 10
+    app.text_area[0].set_value("A nuanced account.").run()
+    app.button[0].click().run()
+    assert not app.exception
+    assert [metric.value for metric in app.metric] == ["3", "1", "Intermediate"]
+    assert app.text[0].value == "A nuanced account."
+    app.selectbox[setting].select(value).run()
+    assert app.session_state.analysis_result is None
+    assert not app.metric
+    assert request.call_count == 1
+
+
+def test_missing_key_in_ui(app):
+    app.text_area[0].set_value("A meaningful passage.").run()
+    app.button[0].click().run()
+    assert "OPENAI_API_KEY" in app.error[0].value
+    assert not app.exception
+
+
+@pytest.mark.parametrize("error", [LLMServiceError("Please try again."), RuntimeError("private details")])
+def test_errors_do_not_show_tracebacks(app, monkeypatch, error):
+    request = Mock(side_effect=error)
+    monkeypatch.setattr(LLMService, "request_structured", request)
+    app.text_area[0].set_value("A meaningful passage.").run()
+    app.button[0].click().run()
+    assert app.error
+    assert "private details" not in app.error[0].value
+    assert not app.exception
     assert app.session_state.analysis_result is None
 
 
