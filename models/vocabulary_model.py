@@ -32,7 +32,7 @@ class VocabularyEntry(BaseModel):
 
 
 class VocabularyAnalysisResult(BaseModel):
-    """Complete future analysis, including the source passage and vocabulary."""
+    """Complete vocabulary output, including the source passage and entries."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
@@ -40,8 +40,15 @@ class VocabularyAnalysisResult(BaseModel):
     entries: list[VocabularyEntry] = Field(default_factory=list)
 
 
+class DefinitionBatch(BaseModel):
+    """One structured generation request for all selected vocabulary."""
+
+    model_config = ConfigDict(extra="forbid")
+    entries: list[VocabularyEntry]
+
+
 class IdentifiedWord(BaseModel):
-    """Identification metadata only; definitions belong to a later phase."""
+    """Identification metadata passed to the separate definition generator."""
 
     model_config = ConfigDict(extra="forbid")
 

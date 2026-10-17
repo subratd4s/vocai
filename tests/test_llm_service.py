@@ -7,7 +7,7 @@ import httpx
 import pytest
 from openai import OpenAI
 
-from models.vocabulary_model import WordSelection
+from models.vocabulary_model import DefinitionBatch, WordSelection
 from services.llm_service import LLMService, LLMServiceError
 
 
@@ -93,3 +93,18 @@ def test_unexpected_error_is_sanitized(monkeypatch):
     monkeypatch.setattr("services.llm_service.OpenAI", Mock(side_effect=RuntimeError("private-details")))
     with pytest.raises(LLMServiceError, match="unexpected AI service error"):
         LLMService().request_structured("rules", "data", WordSelection)
+
+
+def test_real_sdk_parses_definition_batch(monkeypatch):
+    payload = {"entries": [{
+        "word": "nuanced", "definition": "Showing small differences.",
+        "original_context": "A nuanced account.",
+        "example_sentence": "Her nuanced explanation helped us.",
+        "difficulty_level": "Intermediate",
+    }]}
+    install_transport(monkeypatch, lambda request: httpx.Response(
+        200, json=response_body(json.dumps(payload)),
+    ))
+    result = LLMService().request_structured("rules", "data", DefinitionBatch)
+    assert result.entries[0].word == "nuanced"
+    assert result.entries[0].definition == "Showing small differences."

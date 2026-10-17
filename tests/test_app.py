@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 from streamlit.testing.v1 import AppTest
 
-from models.vocabulary_model import VocabularyAnalysisResult, VocabularyEntry, WordSelection
+from models.vocabulary_model import DefinitionBatch, VocabularyAnalysisResult, VocabularyEntry, WordSelection
 from services.llm_service import LLMService, LLMServiceError
 from utils.helpers import count_words
 
@@ -67,10 +67,13 @@ def test_validation_edit_and_clear(app, monkeypatch):
 
 @pytest.mark.parametrize("setting, value", [(0, "Advanced"), (1, 5)])
 def test_settings_invalidate_results(app, monkeypatch, setting, value):
-    request = Mock(return_value=WordSelection(identified_words=[{
+    request = Mock(side_effect=[WordSelection(identified_words=[{
         "word": "nuanced", "difficulty_level": "Intermediate",
         "original_context": "A nuanced account.",
-    }]))
+    }]), DefinitionBatch(entries=[VocabularyEntry(
+        word="nuanced", difficulty_level="Intermediate", original_context="A nuanced account.",
+        definition="Showing small differences.", example_sentence="She gave a nuanced explanation.",
+    )])])
     monkeypatch.setattr(LLMService, "request_structured", request)
     assert app.selectbox[0].value == "Intermediate"
     assert app.selectbox[1].value == 10
@@ -78,11 +81,37 @@ def test_settings_invalidate_results(app, monkeypatch, setting, value):
     app.button[0].click().run()
     assert not app.exception
     assert [metric.value for metric in app.metric] == ["3", "1", "Intermediate"]
-    assert app.text[0].value == "A nuanced account."
+    assert app.text[0].value == "Showing small differences."
+    assert app.text[1].value == "A nuanced account."
+    assert app.text[2].value == "She gave a nuanced explanation."
+    assert any(item.value == "Validation: Passed" for item in app.caption)
+    app.run()
+    app.button[0].click().run()
+    assert request.call_count == 2
     app.selectbox[setting].select(value).run()
     assert app.session_state.analysis_result is None
     assert not app.metric
-    assert request.call_count == 1
+    assert request.call_count == 2
+
+
+def test_failed_definitions_are_not_displayed(app, monkeypatch):
+    selection = WordSelection(identified_words=[{
+        "word": "nuanced", "difficulty_level": "Intermediate", "original_context": "A nuanced account.",
+    }])
+    request = Mock(side_effect=[selection, DefinitionBatch(entries=[]), DefinitionBatch(entries=[])])
+    monkeypatch.setattr(LLMService, "request_structured", request)
+    app.text_area[0].set_value("A nuanced account.").run()
+    app.button[0].click().run()
+    assert not app.exception
+    assert "after one correction" in app.error[0].value
+    assert app.session_state.analysis_result is None
+    assert app.session_state.workflow_state["validation_status"] == "failed"
+    assert not app.metric
+    assert any(item.value == "Validation: Failed" for item in app.caption)
+    app.run()
+    assert request.call_count == 3
+    app.button[1].click().run()
+    assert app.session_state.workflow_state is None
 
 
 def test_missing_key_in_ui(app):

@@ -5,7 +5,7 @@ import json
 from pydantic import ValidationError
 
 from agents.prompts import identification_prompt
-from agents.text_analyzer import InputValidationError, analyze_text
+from agents.text_analyzer import InputValidationError, PreparedText, analyze_text
 from agents.validator import validate_words
 from models.vocabulary_model import DifficultyLevel, IdentificationResult, WordSelection
 from services.llm_service import LLMService, LLMServiceError, StructuredLLM
@@ -20,6 +20,17 @@ def identify_words(
 ) -> IdentificationResult:
     """One request per explicit invocation; metadata is never supplied by the LLM."""
     prepared = analyze_text(text)
+    return identify_prepared_text(prepared, difficulty, max_words, llm=llm)
+
+
+def identify_prepared_text(
+    prepared: PreparedText,
+    difficulty: DifficultyLevel | str,
+    max_words: int,
+    *,
+    llm: StructuredLLM | None = None,
+) -> IdentificationResult:
+    """Reuse validated preparation in a workflow without analyzing text twice."""
     try:
         level = DifficultyLevel(difficulty)
     except (ValueError, TypeError):

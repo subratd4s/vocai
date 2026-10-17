@@ -1,8 +1,8 @@
-"""Streamlit interface for vocabulary identification (Phase 2)."""
+"""Streamlit interface for the Phase 3 vocabulary agent workflow."""
 
 import streamlit as st
 from agents.text_analyzer import InputValidationError
-from agents.word_identifier import identify_words
+from workflows.vocabulary_workflow import run_vocabulary_workflow
 from models.vocabulary_model import DifficultyLevel
 from services.llm_service import LLMServiceError
 from utils.config import load_environment
@@ -14,6 +14,7 @@ def reset_feedback() -> None:
     st.session_state.validation_status = None
     st.session_state.analysis_result = None
     st.session_state.analysis_signature = None
+    st.session_state.workflow_state = None
 
 
 def clear_text() -> None:
@@ -33,6 +34,7 @@ def main() -> None:
         ("validation_status", None),
         ("analysis_result", None),
         ("analysis_signature", None),
+        ("workflow_state", None),
         ("difficulty", "Intermediate"),
         ("max_words", 10),
     ):
@@ -58,8 +60,8 @@ def main() -> None:
         st.subheader("How It Works")
         st.write("Input Text → Identify Words → Generate Definitions → Export Results")
         st.divider()
-        st.success("Status: Phase 2 · Vocabulary identification ready")
-        st.caption("Analysis requires an OpenAI API key. Definitions and export are planned for later phases.")
+        st.success("Status: Phase 3 · Agent workflow ready")
+        st.caption("Analysis requires an OpenAI API key. File export is planned for Phase 4.")
 
     st.title("Vocabulary Builder Agent")
     st.write("Transform your reading into a smarter vocabulary learning experience.")
@@ -97,10 +99,15 @@ def main() -> None:
         if st.session_state.analysis_signature != signature:
             reset_feedback()
             try:
-                with st.spinner("Analyzing your text and identifying vocabulary..."):
-                    result = identify_words(*signature)
-                st.session_state.analysis_result = result
-                st.session_state.analysis_signature = signature
+                with st.spinner("Your AI agents are analyzing the passage and building your vocabulary..."):
+                    result = run_vocabulary_workflow(*signature)
+                st.session_state.workflow_state = result
+                if result["validation_status"] == "valid":
+                    st.session_state.analysis_result = result
+                    st.session_state.analysis_signature = signature
+                else:
+                    kind = "warning" if result["error_kind"] == "input" else "error"
+                    st.session_state.validation_status = (kind, result["error_message"])
             except InputValidationError as error:
                 st.session_state.validation_status = ("warning", str(error))
             except LLMServiceError as error:
@@ -112,22 +119,37 @@ def main() -> None:
         (st.warning if kind == "warning" else st.error)(message)
 
     st.divider()
+    workflow = st.session_state.workflow_state
+    if workflow is not None:
+        st.subheader("Workflow Status")
+        for stage, status in workflow["stage_status"].items():
+            st.caption(f"{stage}: {status}")
+        st.caption(f"Definition correction attempts: {workflow['retry_count']} / 1")
+        if workflow["validation_status"] == "failed" and workflow["validation_errors"]:
+            with st.expander("Validation details"):
+                for message in workflow["validation_errors"]:
+                    st.text(message)
     st.subheader("Your Vocabulary Insights")
     result = st.session_state.analysis_result
     if result is None:
-        st.info("Your identified vocabulary words and their context will appear here after analysis.")
+        st.info("Your vocabulary words, definitions, and examples will appear here after successful analysis.")
     else:
         total, identified, difficulty = st.columns(3)
-        total.metric("Total words in passage", result.total_words_analyzed)
-        identified.metric("Vocabulary words identified", len(result.identified_words))
-        difficulty.metric("Selected difficulty level", result.selected_difficulty.value)
-        if not result.identified_words:
+        total.metric("Total words in passage", result["total_words_analyzed"])
+        identified.metric("Vocabulary words identified", len(result["identified_words"]))
+        difficulty.metric("Selected difficulty level", result["selected_difficulty"].value)
+        if not result["identified_words"]:
             st.info("No challenging vocabulary words were identified for the selected difficulty level.")
-        for entry in result.identified_words:
+        for entry in result["generated_definitions"]:
             with st.container(border=True):
                 st.subheader(entry.word)
                 st.caption(f"Difficulty: {entry.difficulty_level.value}")
+                st.markdown("**Definition**")
+                st.text(entry.definition)
+                st.markdown("**Original context**")
                 st.text(entry.original_context)
+                st.markdown("**Example sentence**")
+                st.text(entry.example_sentence)
     st.subheader("Download")
     st.button("Download Definitions.txt", disabled=True)
     st.caption("File export will be available in a later phase.")

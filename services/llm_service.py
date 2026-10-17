@@ -18,6 +18,10 @@ class LLMServiceError(RuntimeError):
     """Only safe application-authored messages cross the service boundary."""
 
 
+class StructuredOutputError(LLMServiceError):
+    """Malformed output that the workflow may request once more with feedback."""
+
+
 class StructuredLLM(Protocol):
     """Provider boundary usable by agents and later LangGraph nodes."""
 
@@ -60,7 +64,7 @@ class LLMService:
         except APIStatusError:
             raise LLMServiceError("The AI service could not complete the request. Please check model access or try again later.") from None
         except (ValidationError, ValueError, TypeError):
-            raise LLMServiceError("The AI service returned an invalid structured response. Please try again.") from None
+            raise StructuredOutputError("The AI service returned an invalid structured response. Check required fields and nonempty values.") from None
         except LLMServiceError:
             raise
         except Exception:

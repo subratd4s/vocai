@@ -4,11 +4,11 @@ An academic Agentic AI project for learning vocabulary while reading. The planne
 system will analyze a passage, select difficult words, generate contextual
 definitions, validate the results, and export `Definitions.txt`.
 
-**Phases 1 and 2 are implemented.** The app accepts text and identifies vocabulary
-through OpenAI, with configurable difficulty and a maximum result count. Each
-result includes the word, reader level, and original context. No API key is needed
-to launch the UI; a key is required to analyze text. Definitions, LangGraph, and
-file export are not implemented yet.
+**Phases 1–3 are implemented.** A LangGraph workflow prepares text, identifies
+vocabulary, generates contextual definitions and examples, validates results, and
+attempts one correction when needed. Difficulty and maximum word count remain
+configurable. No API key is needed to launch the UI; a key is required for analysis.
+File export is reserved for Phase 4 and remains disabled.
 
 ## Technologies
 
@@ -17,7 +17,7 @@ file export are not implemented yet.
 - Pydantic for validated vocabulary output contracts
 - python-dotenv for optional local environment configuration
 - pytest and Streamlit AppTest for automated checks
-- LangGraph for future agent orchestration
+- LangGraph StateGraph for agent orchestration and conditional retries
 - OpenAI Responses API with SDK Pydantic structured-output parsing
 - UTF-8 TXT for future export; no database required
 
@@ -55,7 +55,8 @@ VocabularyBuilderAgent/
 │   ├── conftest.py
 │   ├── test_app.py
 │   ├── test_identification.py
-│   └── test_llm_service.py
+│   ├── test_llm_service.py
+│   └── test_workflow.py
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
@@ -77,8 +78,9 @@ and example sentences. `WordSelection` is the minimal LLM response;
 `IdentificationResult` adds original text, selected difficulty, and locally
 computed word count. An empty identified-words list is valid.
 
-Definition generation, LangGraph workflow orchestration, and file export modules
-remain placeholders for subsequent phases.
+`definition_generator.py` produces a structured `DefinitionBatch` using the
+existing `VocabularyEntry` model. `workflows/vocabulary_workflow.py` coordinates
+the agents. Only the file export service remains a placeholder.
 
 ## Installation
 
@@ -132,8 +134,11 @@ Configuration errors and missing credentials are shown only when analyzing.
 
 The service uses the official SDK's `responses.parse(..., text_format=...)`
 interface, described in the [OpenAI structured outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses).
-Each analysis makes one request, with a 30-second SDK timeout and automatic
-retries disabled. Responses are requested with `store=False`. Input text is sent
+Each nonempty successful analysis normally makes two requests: identification
+and one batch definition request. A validation correction adds at most one more
+definition request. No-word results use only identification. Each request has a
+30-second SDK timeout and automatic SDK retries disabled. Responses use
+`store=False`. Input text is sent
 to OpenAI only when you click Analyze for a new input/settings combination.
 
 ## Run
@@ -149,8 +154,9 @@ tokenization. Choose Beginner, Intermediate (default), or Advanced, and at most
 5, 10 (default), 15, or 20 vocabulary words. The level changes the selection
 criteria; the maximum never requires the model to fill a quota.
 
-Analyze shows a loading spinner, then summary metrics and vocabulary cards with
-context only. Results survive ordinary reruns; repeated Analyze clicks reuse the
+Analyze shows a loading spinner, then actual workflow stage outcomes, summary
+metrics, and vocabulary cards with definitions, context, and example sentences.
+Results survive ordinary reruns; repeated Analyze clicks reuse the
 current successful result. Editing the text or either setting invalidates results.
 Clear Text clears the passage, results, and feedback while retaining selected
 settings. State is per browser session and is not saved to disk. Errors permit a
@@ -175,7 +181,84 @@ educational relevance still depend on the model; deterministic checks guarantee
 source grounding, not perfect pedagogical judgment. Prompt isolation reduces
 instruction-injection risk but is not a guarantee of model behavior. There are
 no tools for the model to execute. Refusals, incomplete responses, and malformed
-structured output are errors; a valid empty list displays the no-vocabulary state.
+structured output are errors. Malformed definition output is eligible for the
+single correction attempt; identification failures terminate immediately. A valid
+empty identification list displays the no-vocabulary state without generating definitions.
+
+Structural validation does not prove that definitions are factually correct,
+non-circular, or contextually appropriate, nor that examples are grammatical.
+Those remain model responsibilities. Deterministic example checks only require
+the selected word form and reject an example copied from the original passage.
+
+## Phase 3 — Agentic AI Workflow
+
+LangGraph makes the specialized stages, state updates, and correction decision
+explicit in an executable graph. The compiled graph is created once at module
+import and reused; each invocation gets fresh state and provider context. There
+is no checkpointer, database, or global mutable agent data.
+
+1. **Text Analyzer:** reuses `analyze_text` to validate input and prepare normalized
+   text and word counts without an API request. Settings are checked before billing.
+2. **Word Identifier:** uses `identify_prepared_text`, the shared Phase 2 logic.
+   The original `identify_words` entry point remains available for identification
+   alone. Empty selections terminate successfully, skipping the next two stages.
+3. **Definition Generator:** makes one structured batch request for all selected
+   words, asking for their contextual meanings and new, simple example sentences.
+4. **Validation:** checks schema, completeness, exact spelling/context/difficulty,
+   duplicates, unrelated words, count limits, and basic example constraints. It
+   reorders valid entries into passage order without calling an LLM.
+
+`VocabularyState` is a TypedDict containing original/cleaned text, difficulty,
+maximum count, word statistics, identified words, generated definitions, validation
+status/errors, generation errors, retry count, safe failure details, and actual
+stage outcomes. Nodes return partial updates. Provider injection uses LangGraph
+runtime context, not shared state; credentials are loaded only inside the service.
+
+```mermaid
+flowchart TD
+    S([START]) --> A[Text Analyzer]
+    A -->|Prepared| I[Word Identifier]
+    A -->|Input or unexpected error| E([END])
+    I -->|Words identified| D[Definition Generator]
+    I -->|No words: valid and remaining stages skipped| E
+    I -->|Service or unexpected error| E
+    D -->|Batch returned or schema invalid| V[Validation]
+    D -->|Service or unexpected error| E
+    V -->|Invalid: increment retry count to 1 and send feedback| D
+    V -->|Valid| E
+    V -->|Invalid after retry: failed| E
+    V -->|Unexpected error| E
+```
+
+These are actual StateGraph conditional edges, including the Validation →
+Definition Generator cycle. On the first invalid result, validation records errors
+and increments `retry_count` from 0 to 1 before routing back. The generator receives
+that feedback and returns a complete replacement batch. If it remains invalid,
+status becomes `failed`, candidates are cleared, and a useful failure message and
+validation details are returned. Valid results use status `valid`. API failures
+(authentication, quota, connection, timeout, refusal, or incomplete response) end
+execution immediately rather than triggering a formatting correction. A separate
+graph recursion limit of 10 is a defensive bound, not the retry mechanism.
+
+The UI shows only successful definitions. Stage outcomes are recorded by completed
+node execution, not timers or simulated progress. `Pending` means a stage was not
+reached; `Skipped` means no words required generation or validation. A generation
+stage can complete even when its subsequent validation fails. Successful results
+are reused on reruns; failed attempts can be manually rerun by clicking Analyze.
+
+Configure `.env` as described above (`OPENAI_API_KEY`, `OPENAI_MODEL`, and optional
+`MAX_INPUT_CHARACTERS`), then run `streamlit run app.py`. Run the offline suite with
+`python -m pytest -q`. For non-UI use:
+
+```python
+from workflows.vocabulary_workflow import run_vocabulary_workflow
+
+state = run_vocabulary_workflow(text, difficulty="Intermediate", max_words=10)
+if state["validation_status"] == "valid":
+    entries = state["generated_definitions"]
+else:
+    message = state["error_message"]
+```
 
 ## Tests
 
@@ -185,32 +268,33 @@ python -m pytest -q
 
 Tests cover startup without credentials, input limits, levels, deduplication,
 word boundaries and forms, source context, ordering, maximum counts, empty and
-malformed output, SDK errors, and UI state. The real SDK structured parser runs
+malformed output, SDK errors, and UI state. Workflow tests exercise each terminal
+path, successful and failed corrections, isolated state, individual nodes, and
+failure suppression in the UI. The real SDK structured parser runs
 against `httpx.MockTransport`; all real HTTP transport is blocked by an autouse
 fixture and local `.env` loading is disabled. Tests never consume API credits.
 Vocabulary examples are test fixtures only.
 
 For an optional live smoke test, configure a valid key and model, run the app,
 paste a short passage, and click Analyze once. Verify source words/context and
-summary metrics. This sends a billable API request and is separate from pytest.
+summary metrics. This sends billable API requests and is separate from pytest.
 Automated mock tests verify the configured-model request path but cannot verify
 your account's credentials, quota, or model access.
 
 ## Planned development phases
 
-Only Phases 1 and 2 are delivered here. The remaining breakdown is a proposed roadmap
+Only Phases 1–3 are delivered here. The remaining breakdown is a proposed roadmap
 to refine with each subsequent phase's requirements.
 
 1. **Foundation and initial UI:** modular structure, environment setup, input
    handling, output models, and baseline tests.
 2. **AI integration (complete):** provider adapter, structured identification,
    contextual validation, difficulty settings, and results UI.
-3. **Agent workflow:** LangGraph orchestration, word selection, definition
-   generation, and validation nodes.
+3. **Agent workflow (complete):** LangGraph orchestration, batch contextual
+   definitions/examples, deterministic validation, and one controlled correction.
 4. **Results and export:** interactive vocabulary review and `Definitions.txt` download.
 5. **Quality and completion:** failure handling, broader tests, usability polish,
    and final project documentation.
 
-Phase 3 can wrap the existing preparation, identification, and validation functions
-as LangGraph nodes, then add definition generation under its explicit requirements.
-Phase 2 uses a direct service call and does not build that graph yet.
+Phase 4 can consume successfully validated entries for TXT export. No file
+generation, download activation, or Phase 5 work is included in this phase.
