@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+import streamlit as st
 from pydantic import ValidationError
 from streamlit.testing.v1 import AppTest
 
@@ -29,8 +30,7 @@ def test_count_words(text, expected):
 def test_launch_without_api_key(app):
     assert not app.exception
     assert app.text_area[0].value == ""
-    assert app.button[2].label == "Download Definitions.txt"
-    assert app.button[2].disabled
+    assert not app.download_button
     assert app.session_state.analysis_result is None
 
 
@@ -50,6 +50,8 @@ def test_validation_edit_and_clear(app, monkeypatch):
     app.button[0].click().run()
     assert "No challenging vocabulary" in app.info[0].value
     assert app.session_state.analysis_result is not None
+    assert app.session_state.download_content is None
+    assert not app.download_button
     app.run()
     app.button[0].click().run()
     assert request.call_count == 1
@@ -63,10 +65,19 @@ def test_validation_edit_and_clear(app, monkeypatch):
     assert app.caption[0].value == "Word count: 0"
     assert app.session_state.validation_status is None
     assert app.session_state.analysis_result is None
+    assert app.session_state.download_content is None
 
 
 @pytest.mark.parametrize("setting, value", [(0, "Advanced"), (1, 5)])
 def test_settings_invalidate_results(app, monkeypatch, setting, value):
+    download_calls = []
+    original_download_button = st.download_button
+
+    def capture_download(*args, **kwargs):
+        download_calls.append((args, kwargs))
+        return original_download_button(*args, **kwargs)
+
+    monkeypatch.setattr(st, "download_button", capture_download)
     request = Mock(side_effect=[WordSelection(identified_words=[{
         "word": "nuanced", "difficulty_level": "Intermediate",
         "original_context": "A nuanced account.",
@@ -85,12 +96,25 @@ def test_settings_invalidate_results(app, monkeypatch, setting, value):
     assert app.text[1].value == "A nuanced account."
     assert app.text[2].value == "She gave a nuanced explanation."
     assert any(item.value == "Validation: Passed" for item in app.caption)
+    contents = app.session_state.download_content
+    assert contents.decode("utf-8").strip() == app.code[0].value.strip()
+    assert app.download_button[0].label == "Download Definitions.txt"
+    assert app.download_button[0].proto.ignore_rerun
+    _, download_kwargs = download_calls[-1]
+    assert download_kwargs["file_name"] == "Definitions.txt"
+    assert download_kwargs["mime"] == "text/plain"
+    assert download_kwargs["data"] == contents
+    app.download_button[0].click().run()
+    assert not app.exception
+    assert app.session_state.download_content == contents
     app.run()
     app.button[0].click().run()
     assert request.call_count == 2
     app.selectbox[setting].select(value).run()
     assert app.session_state.analysis_result is None
     assert not app.metric
+    assert not app.download_button
+    assert app.session_state.download_content is None
     assert request.call_count == 2
 
 
@@ -107,6 +131,7 @@ def test_failed_definitions_are_not_displayed(app, monkeypatch):
     assert app.session_state.analysis_result is None
     assert app.session_state.workflow_state["validation_status"] == "failed"
     assert not app.metric
+    assert not app.download_button
     assert any(item.value == "Validation: Failed" for item in app.caption)
     app.run()
     assert request.call_count == 3

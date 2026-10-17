@@ -22,7 +22,7 @@ class DifficultyLevel(str, Enum):
 class VocabularyEntry(BaseModel):
     """One word and its explanation in the context of the submitted passage."""
 
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid", revalidate_instances="always")
 
     word: str = Field(min_length=1)
     definition: str = Field(min_length=1)
@@ -50,7 +50,7 @@ class DefinitionBatch(BaseModel):
 class IdentifiedWord(BaseModel):
     """Identification metadata passed to the separate definition generator."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", revalidate_instances="always")
 
     word: str = Field(min_length=1)
     difficulty_level: DifficultyLevel

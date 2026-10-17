@@ -1,1 +1,1 @@
-"""LLM provider boundary and a placeholder for future file export."""
+"""LLM provider boundary and validated, in-memory vocabulary export."""

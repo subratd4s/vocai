@@ -4,22 +4,22 @@ An academic Agentic AI project for learning vocabulary while reading. The planne
 system will analyze a passage, select difficult words, generate contextual
 definitions, validate the results, and export `Definitions.txt`.
 
-**Phases 1–3 are implemented.** A LangGraph workflow prepares text, identifies
-vocabulary, generates contextual definitions and examples, validates results, and
-attempts one correction when needed. Difficulty and maximum word count remain
-configurable. No API key is needed to launch the UI; a key is required for analysis.
-File export is reserved for Phase 4 and remains disabled.
+**Phases 1–5 are implemented.** The app prepares a passage, identifies vocabulary,
+generates contextual definitions and examples, validates results, and makes one
+correction attempt when needed. It displays validated entries and creates a
+previewable UTF-8 `Definitions.txt` download in memory. No API key is needed to
+launch the UI; a key is required for analysis.
 
 ## Technologies
 
 - Python 3.11+
-- Streamlit for the interface and per-session input state
+- Streamlit for the interface, per-session state, preview, and download
 - Pydantic for validated vocabulary output contracts
 - python-dotenv for optional local environment configuration
 - pytest and Streamlit AppTest for automated checks
 - LangGraph StateGraph for agent orchestration and conditional retries
 - OpenAI Responses API with SDK Pydantic structured-output parsing
-- UTF-8 TXT for future export; no database required
+- UTF-8 TXT export; no database or server-side file storage
 
 ## Folder structure
 
@@ -56,7 +56,8 @@ VocabularyBuilderAgent/
 │   ├── test_app.py
 │   ├── test_identification.py
 │   ├── test_llm_service.py
-│   └── test_workflow.py
+│   ├── test_workflow.py
+│   └── test_file_service.py
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
@@ -80,7 +81,18 @@ computed word count. An empty identified-words list is valid.
 
 `definition_generator.py` produces a structured `DefinitionBatch` using the
 existing `VocabularyEntry` model. `workflows/vocabulary_workflow.py` coordinates
-the agents. Only the file export service remains a placeholder.
+the agents. `services/file_service.py` verifies the final workflow status and
+revalidates the output before producing UTF-8 bytes in memory. It does not write
+to disk or make API calls.
+
+## Problem and objectives
+
+Readers often meet unfamiliar words without an easy way to learn what they mean
+in the passage they are reading. This project turns a short English passage into
+a contextual vocabulary list. Its objectives are to select useful words at a
+chosen proficiency level, explain each word in simple language, give a fresh
+example sentence, verify that generated entries match the source, and let the
+reader keep the validated list as a plain text file.
 
 ## Installation
 
@@ -156,11 +168,20 @@ criteria; the maximum never requires the model to fill a quota.
 
 Analyze shows a loading spinner, then actual workflow stage outcomes, summary
 metrics, and vocabulary cards with definitions, context, and example sentences.
-Results survive ordinary reruns; repeated Analyze clicks reuse the
-current successful result. Editing the text or either setting invalidates results.
-Clear Text clears the passage, results, and feedback while retaining selected
-settings. State is per browser session and is not saved to disk. Errors permit a
-manual retry and never produce fabricated vocabulary. Download remains disabled.
+Results survive ordinary reruns; repeated Analyze clicks reuse the current
+successful result. Editing the text or either setting invalidates results and
+download content. Clear Text clears the passage, workflow state, results, feedback,
+and download content while retaining selected settings. State is per browser
+session and is not saved to disk. Errors permit a manual retry and never produce
+fabricated vocabulary.
+
+For nonempty validated results, the app prepares `Definitions.txt`, shows its
+formatted contents in the “Definitions.txt Preview” section, and exposes the
+“Download Definitions.txt” button. The download uses UTF-8 bytes, `text/plain`,
+and Windows CRLF line endings. Streamlit handles the browser download; the app
+does not create a permanent server-side file. Clicking Download does not rerun the
+app or call the LLM. If no challenging words are selected, the app displays the
+empty-result message and omits the preview and download button.
 
 ## Validation and limitations
 
@@ -283,8 +304,7 @@ your account's credentials, quota, or model access.
 
 ## Planned development phases
 
-Only Phases 1–3 are delivered here. The remaining breakdown is a proposed roadmap
-to refine with each subsequent phase's requirements.
+All five requested development phases are implemented.
 
 1. **Foundation and initial UI:** modular structure, environment setup, input
    handling, output models, and baseline tests.
@@ -292,9 +312,28 @@ to refine with each subsequent phase's requirements.
    contextual validation, difficulty settings, and results UI.
 3. **Agent workflow (complete):** LangGraph orchestration, batch contextual
    definitions/examples, deterministic validation, and one controlled correction.
-4. **Results and export:** interactive vocabulary review and `Definitions.txt` download.
-5. **Quality and completion:** failure handling, broader tests, usability polish,
-   and final project documentation.
+4. **Results and export (complete):** validated vocabulary preview and in-memory
+   `Definitions.txt` download.
+5. **Quality and completion (complete):** workflow, file formatting, session state,
+   and end-to-end app behavior tested without live API requests.
 
-Phase 4 can consume successfully validated entries for TXT export. No file
-generation, download activation, or Phase 5 work is included in this phase.
+## Example
+
+Input: `The researcher showed perseverance while trying to decipher the message.`
+
+With an OpenAI key configured, output depends on the model and selected level.
+A result may include a word, its contextual definition, the original sentence,
+a new example sentence, and a difficulty label. The exported file includes a
+title, level, entry count, numbered entries, and separators. Tests use mock
+vocabulary only; the application does not hardcode words or definitions.
+
+## Limitations
+
+The model determines vocabulary selection and definition quality; schema and
+source checks cannot prove a definition is factually accurate or an example is
+grammatical. Text validation is a lightweight English-character check. Sentence
+context extraction uses basic punctuation boundaries, and abbreviations may be
+split. One definition correction is allowed; identification or service errors
+end the run. A live API smoke test requires a valid key, quota, and model access.
+The interface was checked functionally, not through visual design review; its
+layout has not been redesigned.
