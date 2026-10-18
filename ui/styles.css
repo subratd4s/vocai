@@ -1,0 +1,65 @@
+:root { --blue:#1883AE; --green:#18AE95; --ink:#0D0E1A; }
+html { scroll-behavior:smooth; }
+.stApp, [data-testid="stAppViewContainer"] { background:#FFFFFF; color:var(--ink); font-family:Inter,sans-serif; }
+body, p, label, input, textarea, button, [data-baseweb="select"] { font-family:Inter,sans-serif !important; }
+h1,h2,h3 { font-family:'IBM Plex Serif',serif !important; color:var(--ink) !important; }
+[data-testid="stHeader"], [data-testid="stSidebar"], #MainMenu, footer { display:none; }
+.stMainBlockContainer { max-width:770px; padding:0 40px 70px; margin:auto; }
+[data-testid="stMain"] { margin-left:60px; }
+.rail { position:fixed; inset:0 auto 0 0; width:60px; border-right:1px solid #eceef0; background:white; z-index:999; display:flex; align-items:center; flex-direction:column; }
+.rail a { color:var(--ink); width:34px; height:34px; display:flex; justify-content:center; align-items:center; text-decoration:none; border-radius:50%; }
+.rail svg { width:18px; height:18px; }
+.rail .monogram { font-family:'IBM Plex Serif',serif; font-size:30px; margin:18px 0 25px; color:var(--blue); }
+.monogram span { color:var(--green); font-size:20px; }
+.rail-links { display:flex; flex-direction:column; gap:14px; }
+.rail .active { background:var(--blue); color:white; }
+.rail a:hover { background:#f0f5f6; }
+.rail .active:hover { background:var(--blue); }
+.rail .rail-help { margin-top:auto; margin-bottom:20px; border:1px solid #eceef0; }
+.topbar { position:fixed; left:88px; right:32px; top:27px; display:flex; align-items:center; justify-content:space-between; z-index:5; font:500 12px Inter,sans-serif; }
+.topbar a { color:var(--ink); text-decoration:none; }
+.ai-status { display:flex; gap:7px; align-items:center; color:#737880; font-size:11px; font-weight:400; }
+.ai-status i { width:6px; height:6px; border-radius:50%; background:#a0a5ad; }
+.ai-status.configured i { background:var(--green); }
+.hero { padding-top:clamp(160px,29vh,300px); margin-bottom:35px; text-align:center; scroll-margin-top:90px; }
+.hero h1 { font-size:40px; font-weight:500; letter-spacing:-1.3px; line-height:1.25; padding:0; margin:0; }
+.st-key-composer { background:white; border:1px solid #e5e7eb; border-radius:16px; padding:16px 16px 12px; box-shadow:0 0 0 3px #f9f9fa, 0 3px 10px #0D0E1A04; }
+.st-key-composer [data-testid="stTextArea"] > div { border:0 !important; box-shadow:none !important; background:white !important; }
+.st-key-composer textarea { background:white !important; color:var(--ink); font-size:13px; line-height:1.7; padding:0 2px; resize:vertical; min-height:120px; }
+.st-key-composer textarea::placeholder { color:#80848e; opacity:1; }
+.st-key-composer [data-baseweb="select"] > div { background:white; border:1px solid #e5e7eb; border-radius:30px; min-height:34px; font-size:11px; padding-left:10px; }
+.st-key-composer [data-baseweb="select"] svg { width:14px; }
+.st-key-composer [data-testid="stHorizontalBlock"] { gap:8px; align-items:center; }
+.st-key-analyze button { border-radius:50%; width:36px; height:36px; min-height:36px; padding:0; background:var(--green); border:0; color:white; font-size:22px; }
+.st-key-analyze button:hover { background:#18AE95; filter:brightness(.94); color:white; }
+.st-key-analyze button p { font-size:23px; line-height:1; }
+.st-key-clear button { border:0; background:transparent; color:#757b85; font-size:11px; padding:0; min-height:25px; }
+.st-key-clear button p { font-size:11px; }
+.st-key-input_footer { margin-top:-10px; background:#f9f9fa; border-radius:0 0 14px 14px; padding:10px 15px; }
+.st-key-input_footer [data-testid="stCaptionContainer"] p { font-size:10px; margin:0; color:#777e88; }
+.st-key-input_footer [data-testid="stColumn"]:last-child p { text-align:right; }
+.st-key-support { margin-top:clamp(150px,26vh,280px); }
+#vocabulary,#about { scroll-margin-top:35px; }
+.st-key-support h2 { font-size:27px; font-weight:500; }
+.st-key-support h3 { font-size:22px; }
+[data-testid="stMetricValue"] { font-family:'IBM Plex Serif',serif; font-size:26px; }
+.bottom-glow { position:fixed; bottom:0; left:60px; right:0; height:95px; pointer-events:none; z-index:0; background:linear-gradient(to top,#1883AE0d,transparent), repeating-linear-gradient(90deg,transparent 0 60px,#18AE9505 60px 120px); mask-image:radial-gradient(ellipse at bottom,black,transparent 75%); }
+a:focus-visible,button:focus-visible { outline:2px solid var(--blue); outline-offset:3px; }
+@media(max-width:700px) { .stMainBlockContainer { padding:0 18px 40px; } .hero h1 { font-size:32px; } .hero { padding-top:180px; } .topbar { left:76px; right:18px; } .st-key-composer { padding:12px; } .st-key-composer [data-testid="stHorizontalBlock"] { flex-wrap:nowrap; } .st-key-composer [data-testid="stColumn"] { min-width:0 !important; } .st-key-input_footer [data-testid="stHorizontalBlock"] { flex-wrap:nowrap; } }
+@media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+.st-key-composer [data-baseweb="select"] > div { background:#FFFFFF !important; color:#0D0E1A !important; border-radius:30px !important; }
+
+
+.st-key-composer [data-testid="stSelectbox"] [role="group"] { background:white; border:1px solid #e5e7eb; border-radius:30px; min-height:32px; height:32px; }
+.st-key-composer [role="combobox"] { font-size:11px; padding-left:10px; }
+.st-key-composer [data-testid="stSelectbox"] button { padding:0 6px; }
+.st-key-composer [data-testid="stSelectbox"] svg { width:14px; }
+[data-testid="stMain"] { width:calc(100% - 60px); }
+h1 *, h2 *, h3 * { font-family:'IBM Plex Serif',serif !important; }
+.stMainBlockContainer { width:100%; box-sizing:border-box; }
+@media(max-width:700px) { .hero h1 { font-size:30px; } .st-key-composer [data-testid="stHorizontalBlock"] { gap:6px; } .st-key-composer [data-testid="stColumn"]:nth-child(1) { flex:1.5; } .st-key-composer [data-testid="stColumn"]:nth-child(2) { flex:1.1; } .st-key-composer [data-testid="stColumn"]:nth-child(3) { display:none; } .st-key-composer [data-testid="stColumn"]:nth-child(4) { flex:0 0 36px; } }
+.st-key-analyze button p { font-size:0; }
+.st-key-analyze button p::after { content:'\2191'; font-size:23px; line-height:1; }
+.st-key-input_footer [data-testid="stColumn"] { min-width:0 !important; flex:1; }
+.st-key-input_footer [data-testid="stColumn"]:last-child { flex:1.4; }
+@supports (field-sizing:content) { .st-key-composer textarea { field-sizing:content; height:auto !important; min-height:120px; max-height:420px; } }

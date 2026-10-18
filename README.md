@@ -18,7 +18,7 @@ launch the UI; a key is required for analysis.
 - python-dotenv for optional local environment configuration
 - pytest and Streamlit AppTest for automated checks
 - LangGraph StateGraph for agent orchestration and conditional retries
-- OpenAI Responses API with SDK Pydantic structured-output parsing
+- Google Gemini API with the official google-genai SDK and Pydantic structured outputs
 - UTF-8 TXT export; no database or server-side file storage
 
 ## Folder structure
@@ -133,25 +133,31 @@ On macOS / Linux, use `cp .env.example .env`. Never commit real keys. `.env` is
 ignored by Git, and existing process environment variables take precedence.
 
 ```dotenv
-OPENAI_API_KEY=your_actual_api_key
-OPENAI_MODEL=gpt-4o-mini
+GEMINI_API_KEY=your_actual_api_key
+GEMINI_MODEL=gemini-2.5-flash
 MAX_INPUT_CHARACTERS=5000
 ```
 
-`OPENAI_MODEL` defaults to `gpt-4o-mini` when unset. A replacement OpenAI model
-must support the Responses API and structured outputs. The configured key must
+`GEMINI_MODEL` defaults to `gemini-2.5-flash` when unset. A replacement Gemini model
+must support structured JSON outputs. The configured key must
 have model access and available API quota. The positive integer input limit
 applies to the original submission, including whitespace, before normalization.
 Configuration errors and missing credentials are shown only when analyzing.
 
-The service uses the official SDK's `responses.parse(..., text_format=...)`
-interface, described in the [OpenAI structured outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses).
+The service uses Google's official `google-genai` SDK with
+`models.generate_content`, JSON response MIME type, and a Pydantic response schema,
+as documented in the [Google Gen AI SDK guide](https://googleapis.github.io/python-genai/).
+Raw response JSON is validated again locally with Pydantic. Incomplete, blocked,
+or malformed outputs are never shown as successful vocabulary results.
 Each nonempty successful analysis normally makes two requests: identification
 and one batch definition request. A validation correction adds at most one more
 definition request. No-word results use only identification. Each request has a
-30-second SDK timeout and automatic SDK retries disabled. Responses use
-`store=False`. Input text is sent
-to OpenAI only when you click Analyze for a new input/settings combination.
+30-second timeout and one SDK attempt (no automatic network retries).
+Input text is sent to Gemini only when you click Analyze for a new input/settings
+combination. Downloading uses the validated in-memory result and makes no API call.
+Quota, authentication, connectivity, and server errors use sanitized messages.
+The application does not enable billing; free-tier availability and quota are
+controlled by the Google project associated with your key.
 
 ## Run
 
@@ -267,7 +273,7 @@ reached; `Skipped` means no words required generation or validation. A generatio
 stage can complete even when its subsequent validation fails. Successful results
 are reused on reruns; failed attempts can be manually rerun by clicking Analyze.
 
-Configure `.env` as described above (`OPENAI_API_KEY`, `OPENAI_MODEL`, and optional
+Configure `.env` as described above (`GEMINI_API_KEY`, `GEMINI_MODEL`, and optional
 `MAX_INPUT_CHARACTERS`), then run `streamlit run app.py`. Run the offline suite with
 `python -m pytest -q`. For non-UI use:
 
@@ -321,7 +327,7 @@ All five requested development phases are implemented.
 
 Input: `The researcher showed perseverance while trying to decipher the message.`
 
-With an OpenAI key configured, output depends on the model and selected level.
+With an Gemini key configured, output depends on the model and selected level.
 A result may include a word, its contextual definition, the original sentence,
 a new example sentence, and a difficulty label. The exported file includes a
 title, level, entry count, numbered entries, and separators. Tests use mock
@@ -337,3 +343,35 @@ split. One definition correction is allowed; identification or service errors
 end the run. A live API smoke test requires a valid key, quota, and model access.
 The interface was checked functionally, not through visual design review; its
 layout has not been redesigned.
+
+### Reference-based interface
+
+The reading interface uses a narrow icon navigation rail, centered input composer,
+IBM Plex Serif headings and Inter controls. The fonts and their OFL licenses live
+in `ui/fonts/` and are embedded locally, so typography needs no external font service.
+Presentation styles live in `ui/styles.css`; the shell is in `ui/presentation.py`.
+The sidebar links jump to Reading, Vocabulary and Information sections. The status
+indicates local key configuration, not a live API connectivity check. Select a
+level and maximum word count, then use the green arrow to run the existing workflow.
+
+### Gemini migration verification — 18 October 2026
+
+- Installed official `google-genai` 2.31.0 in the existing virtual environment;
+  removed the unused OpenAI SDK. Dependency checks pass.
+- The service sends `response_json_schema` generated by Pydantic. This preserves
+  strict object schemas without the unsupported `additional_properties` field
+  encountered with Gemini's older `response_schema` transport.
+- The requested default/template model remains `gemini-2.5-flash`. The live API
+  reported that model unavailable to new users and recommended `gemini-3.8-flash`.
+  This checkout's ignored `.env` therefore selects `GEMINI_MODEL=gemini-3.8-flash`.
+  It has a [documented free tier](https://ai.google.dev/gemini-api/docs/pricing).
+  No billing settings were changed. Actual account quota/billing remains controlled
+  by Google; model discovery alone does not certify an account's billing tier.
+- 128 offline tests pass, including real SDK parsing over mocked HTTP, error
+  sanitization, workflow branches, export bytes and download without another call.
+- Live model discovery and structured vocabulary identification succeeded.
+  Definition generation returned HTTP 503 (temporary overload); a final bounded
+  attempt also returned overload. A complete live definitions/export run could
+  not be confirmed. No fabricated results or automatic overload retry was added.
+- The local Streamlit application starts and its browser UI shows AI configured.
+  The frontend layout, fonts, colours and AI agent responsibilities are unchanged.

@@ -1,6 +1,9 @@
 """Streamlit interface for vocabulary analysis, preview, and TXT download."""
 
+import os
+
 import streamlit as st
+from ui.presentation import shell
 from agents.text_analyzer import InputValidationError
 from models.vocabulary_model import DifficultyLevel
 from services.file_service import (
@@ -48,50 +51,29 @@ def main() -> None:
         if key not in st.session_state:
             st.session_state[key] = default
 
-    st.markdown(
-        """<style>
-        .block-container { max-width: 1100px; padding-top: 2.5rem; }
-        h1 { letter-spacing: -0.035em; }
-        textarea { line-height: 1.65 !important; }
-        </style>""",
-        unsafe_allow_html=True,
-    )
-
-    with st.sidebar:
-        st.title("Vocabulary Builder Agent")
-        st.write(
-            "An academic Agentic AI project designed to help you learn "
-            "new words in the context of your reading."
+    configured = bool(os.getenv("GEMINI_API_KEY", "").strip()) and os.getenv("GEMINI_API_KEY") != "your_api_key_here"
+    st.markdown(shell(configured), unsafe_allow_html=True)
+    st.markdown('<section class="hero" id="reading"><h1>What would you like to learn today?</h1></section>', unsafe_allow_html=True)
+    with st.container(key="composer"):
+        st.text_area(
+            "Paste a paragraph or passage", key="passage", height=145,
+            placeholder="Paste your text here to discover new vocabulary...",
+            label_visibility="collapsed", on_change=reset_feedback,
         )
-        st.divider()
-        st.subheader("How It Works")
-        st.write("Input Text → Identify Words → Generate Definitions → Export Results")
-        st.divider()
-        st.success("Status: Vocabulary analysis and TXT export ready")
-        st.caption("Analysis requires an OpenAI API key. Preview and download use your validated results.")
-
-    st.title("Vocabulary Builder Agent")
-    st.write("Transform your reading into a smarter vocabulary learning experience.")
-    st.divider()
-    st.subheader("Start with your reading")
-    st.text_area(
-        "Paste a paragraph or passage",
-        key="passage",
-        height=260,
-        placeholder=(
-            "The inquisitive student explored the intricate connections between "
-            "language and culture. Through persistent reading, she developed "
-            "a nuanced understanding of unfamiliar expressions and their context."
-        ),
-        on_change=reset_feedback,
-    )
-    st.caption(f"Word count: {count_words(st.session_state.passage)}")
-    st.caption("The count updates when you finish editing and click outside the text box.")
-    difficulty_column, maximum_column = st.columns(2)
-    with difficulty_column:
-        st.selectbox("Difficulty level", [level.value for level in DifficultyLevel], key="difficulty", on_change=reset_feedback)
-    with maximum_column:
-        st.selectbox("Maximum vocabulary words", [5, 10, 15, 20], key="max_words", format_func=lambda value: f"{value} words", on_change=reset_feedback)
+        difficulty_column, maximum_column, space_column, analyze_column = st.columns([2.6, 2.1, 4.1, .8])
+        with difficulty_column:
+            st.selectbox("Difficulty level", [level.value for level in DifficultyLevel], key="difficulty", on_change=reset_feedback, label_visibility="collapsed")
+        with maximum_column:
+            st.selectbox("Maximum vocabulary words", [5, 10, 15, 20], key="max_words", format_func=lambda value: str(value), on_change=reset_feedback, label_visibility="collapsed")
+        with analyze_column:
+            analyze = st.button("Analyze Vocabulary", key="analyze", type="primary", help="Analyze Vocabulary")
+    with st.container(key="input_footer"):
+        word_column, powered_column = st.columns(2)
+        with word_column:
+            st.caption(f"{count_words(st.session_state.passage)} words")
+        with powered_column:
+            st.caption("Powered by Agentic AI")
+    st.button("Clear Text", key="clear", on_click=clear_text)
     signature = (st.session_state.passage, st.session_state.difficulty, st.session_state.max_words)
     if st.session_state.input_signature not in (None, signature):
         reset_feedback()
@@ -121,12 +103,6 @@ def main() -> None:
         reset_feedback()
     if st.session_state.analysis_result is None:
         st.session_state.download_content = None
-    analyze_column, clear_column = st.columns(2)
-    with analyze_column:
-        analyze = st.button("Analyze Vocabulary", type="primary", use_container_width=True)
-    with clear_column:
-        st.button("Clear Text", on_click=clear_text, use_container_width=True)
-
     if analyze:
         # Reuse the current successful result even if Analyze is clicked again.
         if st.session_state.analysis_signature != signature:
@@ -154,56 +130,59 @@ def main() -> None:
         kind, message = st.session_state.validation_status
         (st.warning if kind == "warning" else st.error)(message)
 
-    st.divider()
-    workflow = st.session_state.workflow_state
-    if workflow is not None:
-        st.subheader("Workflow Status")
-        for stage, status in workflow["stage_status"].items():
-            st.caption(f"{stage}: {status}")
-        st.caption(f"Definition correction attempts: {workflow['retry_count']} / 1")
-        if workflow["validation_status"] == "failed" and workflow["validation_errors"]:
-            with st.expander("Validation details"):
-                for message in workflow["validation_errors"]:
-                    st.text(message)
-    st.subheader("Your Vocabulary Insights")
-    result = st.session_state.analysis_result
-    if result is None:
-        st.info("Your vocabulary words, definitions, and examples will appear here after successful analysis.")
-    else:
-        total, identified, difficulty = st.columns(3)
-        total.metric("Total words in passage", result["total_words_analyzed"])
-        identified.metric("Vocabulary words identified", len(result["identified_words"]))
-        difficulty.metric("Selected difficulty level", DifficultyLevel(result["selected_difficulty"]).value)
-        if not result["identified_words"]:
-            st.info("No challenging vocabulary words were identified for the selected difficulty level.")
-        for entry in validate_workflow_result(result):
-            with st.container(border=True):
-                st.subheader(entry.word)
-                st.caption(f"Difficulty: {entry.difficulty_level.value}")
-                st.markdown("**Definition**")
-                st.text(entry.definition)
-                st.markdown("**Original context**")
-                st.text(entry.original_context)
-                st.markdown("**Example sentence**")
-                st.text(entry.example_sentence)
-    st.subheader("Download")
-    st.session_state.download_content = None
-    if result is not None and result["identified_words"]:
-        try:
-            st.session_state.download_content = generate_definitions_file(result)
-        except FileGenerationError as error:
-            st.error(str(error))
-        except Exception:
-            st.error("Unable to prepare Definitions.txt. Your analysis is saved; click Analyze Vocabulary to retry file preparation without another AI request.")
-        if st.session_state.download_content is not None:
-            st.subheader("Definitions.txt Preview")
-            st.code(st.session_state.download_content.decode("utf-8"), language=None)
-            st.download_button(
-                "Download Definitions.txt", data=st.session_state.download_content,
-                file_name=DEFINITIONS_FILENAME, mime=DEFINITIONS_MIME, on_click="ignore",
-            )
-    else:
-        st.caption("A download will be available after vocabulary results pass validation.")
+    with st.container(key="support"):
+        st.markdown('<div id="vocabulary"></div>', unsafe_allow_html=True)
+        workflow = st.session_state.workflow_state
+        if workflow is not None:
+            st.subheader("Workflow Status")
+            for stage, status in workflow["stage_status"].items():
+                st.caption(f"{stage}: {status}")
+            st.caption(f"Definition correction attempts: {workflow['retry_count']} / 1")
+            if workflow["validation_status"] == "failed" and workflow["validation_errors"]:
+                with st.expander("Validation details"):
+                    for message in workflow["validation_errors"]:
+                        st.text(message)
+        st.subheader("Your Vocabulary Insights")
+        result = st.session_state.analysis_result
+        if result is None:
+            st.info("Your vocabulary words, definitions, and examples will appear here after successful analysis.")
+        else:
+            total, identified, difficulty = st.columns(3)
+            total.metric("Total words in passage", result["total_words_analyzed"])
+            identified.metric("Vocabulary words identified", len(result["identified_words"]))
+            difficulty.metric("Selected difficulty level", DifficultyLevel(result["selected_difficulty"]).value)
+            if not result["identified_words"]:
+                st.info("No challenging vocabulary words were identified for the selected difficulty level.")
+            for entry in validate_workflow_result(result):
+                with st.container(border=True):
+                    st.subheader(entry.word)
+                    st.caption(f"Difficulty: {entry.difficulty_level.value}")
+                    st.markdown("**Definition**")
+                    st.text(entry.definition)
+                    st.markdown("**Original context**")
+                    st.text(entry.original_context)
+                    st.markdown("**Example sentence**")
+                    st.text(entry.example_sentence)
+        st.session_state.download_content = None
+        if result is not None and result["identified_words"]:
+            try:
+                st.session_state.download_content = generate_definitions_file(result)
+            except FileGenerationError as error:
+                st.error(str(error))
+            except Exception:
+                st.error("Unable to prepare Definitions.txt. Your analysis is saved; click Analyze Vocabulary to retry file preparation without another AI request.")
+            if st.session_state.download_content is not None:
+                st.subheader("Definitions.txt Preview")
+                st.code(st.session_state.download_content.decode("utf-8"), language=None)
+                st.download_button(
+                    "Download Definitions.txt", data=st.session_state.download_content,
+                    file_name=DEFINITIONS_FILENAME, mime=DEFINITIONS_MIME, on_click="ignore",
+                )
+        st.markdown('<div id="about"></div>', unsafe_allow_html=True)
+        with st.expander("About Vocabulary Builder · How it works"):
+            st.write("Paste a reading passage, choose your difficulty and word limit, then press the arrow to analyze. Your AI agents identify vocabulary, generate contextual definitions and examples, and validate the results.")
+            st.write("Download your validated vocabulary as Definitions.txt. Editing your passage or settings clears previous results. Clear Text starts a fresh reading session.")
+            st.caption("Analysis requires an Gemini API key configured in .env. Word count updates when you finish editing and click outside the text field. AI-generated explanations may need review.")
 
 
 if __name__ == "__main__":

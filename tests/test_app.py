@@ -17,7 +17,7 @@ APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
 
 @pytest.fixture
 def app(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
     return AppTest.from_file(str(APP_PATH), default_timeout=15).run()
 
@@ -46,7 +46,7 @@ def test_validation_edit_and_clear(app, monkeypatch):
     request = Mock(return_value=WordSelection(identified_words=[]))
     monkeypatch.setattr(LLMService, "request_structured", request)
     app.text_area[0].set_value("Reading builds vocabulary.").run()
-    assert app.caption[0].value == "Word count: 3"
+    assert app.caption[0].value == "3 words"
     app.button[0].click().run()
     assert "No challenging vocabulary" in app.info[0].value
     assert app.session_state.analysis_result is not None
@@ -62,7 +62,7 @@ def test_validation_edit_and_clear(app, monkeypatch):
     app.button[1].click().run()
     assert not app.exception
     assert app.text_area[0].value == ""
-    assert app.caption[0].value == "Word count: 0"
+    assert app.caption[0].value == "0 words"
     assert app.session_state.validation_status is None
     assert app.session_state.analysis_result is None
     assert app.session_state.download_content is None
@@ -142,7 +142,7 @@ def test_failed_definitions_are_not_displayed(app, monkeypatch):
 def test_missing_key_in_ui(app):
     app.text_area[0].set_value("A meaningful passage.").run()
     app.button[0].click().run()
-    assert "OPENAI_API_KEY" in app.error[0].value
+    assert "GEMINI_API_KEY" in app.error[0].value
     assert not app.exception
 
 
