@@ -41,7 +41,12 @@ class LLMService:
         try:
             with genai.Client(
                 api_key=api_key, vertexai=False,
-                http_options=types.HttpOptions(timeout=30_000, retry_options=types.HttpRetryOptions(attempts=1)),
+                # Gemini occasionally returns 503 while busy. Retry only that transient
+                # status, twice, with short backoff; never retry quota or auth errors.
+                http_options=types.HttpOptions(timeout=30_000, retry_options=types.HttpRetryOptions(
+                    attempts=3, initial_delay=0.4, max_delay=1.0,
+                    exp_base=2.0, jitter=0.0, http_status_codes=[503],
+                )),
             ) as client:
                 response = client.models.generate_content(
                     model=model, contents=user_data,

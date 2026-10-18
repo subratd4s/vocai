@@ -327,7 +327,7 @@ All five requested development phases are implemented.
 
 Input: `The researcher showed perseverance while trying to decipher the message.`
 
-With an Gemini key configured, output depends on the model and selected level.
+With a Gemini key configured, output depends on the model and selected level.
 A result may include a word, its contextual definition, the original sentence,
 a new example sentence, and a difficulty label. The exported file includes a
 title, level, entry count, numbered entries, and separators. Tests use mock
@@ -341,18 +341,18 @@ grammatical. Text validation is a lightweight English-character check. Sentence
 context extraction uses basic punctuation boundaries, and abbreviations may be
 split. One definition correction is allowed; identification or service errors
 end the run. A live API smoke test requires a valid key, quota, and model access.
-The interface was checked functionally, not through visual design review; its
-layout has not been redesigned.
+The interface uses a slim frosted navigation rail, a centered glass input composer, a softly animated orb, and a refined export preview.
 
-### Reference-based interface
+### Premium frontend
 
-The reading interface uses a narrow icon navigation rail, centered input composer,
-IBM Plex Serif headings and Inter controls. The fonts and their OFL licenses live
-in `ui/fonts/` and are embedded locally, so typography needs no external font service.
-Presentation styles live in `ui/styles.css`; the shell is in `ui/presentation.py`.
-The sidebar links jump to Reading, Vocabulary and Information sections. The status
-indicates local key configuration, not a live API connectivity check. Select a
-level and maximum word count, then use the green arrow to run the existing workflow.
+The Streamlit frontend includes a minimal icon sidebar, centered composer, live
+word count, click-only difficulty and word-count controls, vocabulary cards,
+workflow status, and a Definitions.txt preview and download surface. Analysis
+runs only when the user presses the arrow button.
+The IBM Plex Serif and Inter font files and licenses live in `ui/fonts/`; the
+presentation shell is in `ui/presentation.py` and reusable responsive design
+styles are in `ui/styles.css`. Layout controls adapt across desktop, tablet,
+and mobile. Orb animation respects reduced-motion preferences.
 
 ### Gemini migration verification — 18 October 2026
 
@@ -367,11 +367,11 @@ level and maximum word count, then use the green arrow to run the existing workf
   It has a [documented free tier](https://ai.google.dev/gemini-api/docs/pricing).
   No billing settings were changed. Actual account quota/billing remains controlled
   by Google; model discovery alone does not certify an account's billing tier.
-- 128 offline tests pass, including real SDK parsing over mocked HTTP, error
-  sanitization, workflow branches, export bytes and download without another call.
+- Offline tests cover SDK parsing over mocked HTTP, error sanitization, workflow
+  branches, export bytes, and retry behavior without making live API requests.
 - Live model discovery and structured vocabulary identification succeeded.
   Definition generation returned HTTP 503 (temporary overload); a final bounded
   attempt also returned overload. A complete live definitions/export run could
-  not be confirmed. No fabricated results or automatic overload retry was added.
-- The local Streamlit application starts and its browser UI shows AI configured.
-  The frontend layout, fonts, colours and AI agent responsibilities are unchanged.
+  not be confirmed at that time. The app now retries HTTP 503 twice with short
+  backoff, then reports the overload without displaying incomplete results.
+- The local Streamlit application starts and preserves all AI agent responsibilities.

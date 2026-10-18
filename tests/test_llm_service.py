@@ -44,7 +44,8 @@ def test_configured_model_and_real_sdk_structured_parser(monkeypatch):
     assert body['contents'][0]['parts'][0]['text'] == '{"passage":"hello"}'
     options = constructor.call_args.kwargs['http_options']
     assert options.timeout == 30000
-    assert options.retry_options.attempts == 1
+    assert options.retry_options.attempts == 3
+    assert options.retry_options.http_status_codes == [503]
     assert constructor.call_args.kwargs['vertexai'] is False
 
 
@@ -66,7 +67,18 @@ def test_api_status_errors(monkeypatch, status, fragment):
         LLMService().request_structured('rules', 'data', WordSelection)
     assert 'private-details' not in str(error.value)
     assert 'test-key-never-real' not in str(error.value)
-    handler.assert_called_once()
+    assert handler.call_count == (3 if status == 503 else 1)
+
+
+def test_transient_overload_recovers_without_charging_an_extra_workflow_step(monkeypatch):
+    responses = [
+        httpx.Response(503, json={'error': {'code': 503, 'message': 'busy'}}),
+        httpx.Response(200, json=response_body()),
+    ]
+    handler = Mock(side_effect=responses)
+    install_transport(monkeypatch, handler)
+    assert LLMService().request_structured('rules', 'data', WordSelection) == WordSelection(identified_words=[])
+    assert handler.call_count == 2
 
 
 def test_invalid_key_bad_request(monkeypatch):

@@ -1,0 +1,38 @@
+<svg viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="vocai-circle"><circle cx="210" cy="210" r="162"/></clipPath>
+          <radialGradient id="vocai-sphere" cx="56%" cy="35%" r="69%">
+            <stop offset="0" stop-color="#ffffff"/><stop offset=".25" stop-color="#ebfdff"/>
+            <stop offset=".58" stop-color="#99e8f7"/><stop offset=".82" stop-color="#46bada"/>
+            <stop offset="1" stop-color="#0871b8"/>
+          </radialGradient>
+          <linearGradient id="vocai-layer-a" x1=".1" y1=".1" x2=".9" y2=".9">
+            <stop offset="0" stop-color="#0277d2"/><stop offset=".32" stop-color="#a8f2ff"/>
+            <stop offset=".62" stop-color="#f6f7d4"/><stop offset="1" stop-color="#0cb4d5"/>
+          </linearGradient>
+          <linearGradient id="vocai-layer-b" x1=".8" y1=".1" x2=".2" y2=".9">
+            <stop offset="0" stop-color="#d8ffff"/><stop offset=".42" stop-color="#65d6ef"/>
+            <stop offset=".72" stop-color="#0b75b4"/><stop offset="1" stop-color="#c8f7f9"/>
+          </linearGradient>
+          <linearGradient id="vocai-layer-c" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#22a8d7"/><stop offset=".48" stop-color="#c8ffff"/>
+            <stop offset="1" stop-color="#063c96"/>
+          </linearGradient>
+          <radialGradient id="vocai-highlight" cx="50%" cy="45%" r="55%">
+            <stop offset="0" stop-color="#ffffff" stop-opacity=".95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="210" cy="210" r="164" fill="#13adf1" opacity=".38"/>
+        <circle cx="210" cy="210" r="162" fill="url(#vocai-sphere)"/>
+        <g clip-path="url(#vocai-circle)">
+          <path class="vocai-glass-a" d="M66 132C98 71 172 46 254 45c-21 44-45 64-78 89-37 28-53 49-92 43-24-3-34-19-18-45Z" fill="url(#vocai-layer-a)" opacity=".95" stroke="#c9fcff" stroke-opacity=".35" stroke-width="1.5"/>
+          <path class="vocai-glass-b" d="M263 49c69 25 119 90 115 172-19 38-46 65-87 85-27 13-60 28-94 21 39-43 48-87 44-130-5-51 12-97 22-148Z" fill="url(#vocai-layer-b)" opacity=".78" stroke="#ffffff" stroke-opacity=".4" stroke-width="1.5"/>
+          <path class="vocai-glass-c" d="M115 318c49-32 111-24 156 9 32-10 59-24 85-43-24 57-75 91-145 91-47 0-80-18-96-57Z" fill="url(#vocai-layer-c)" opacity=".91"/>
+          <path d="M167 125c59 11 89 49 87 100-2 51-25 77-54 103-27-15-42-48-38-84 5-46 37-78 5-119Z" fill="url(#vocai-layer-b)" opacity=".54" stroke="#267da7" stroke-opacity=".38" stroke-width="1.5"/>
+          <ellipse class="vocai-glint" cx="288" cy="156" rx="78" ry="105" fill="url(#vocai-highlight)" opacity=".69" transform="rotate(-24 288 156)"/>
+          <path d="M68 166c27 22 64-5 100-26 31-18 52-19 84-10" fill="none" stroke="#ffffff" stroke-opacity=".64" stroke-width="2"/>
+          <path d="M193 327c47 21 98 4 158-45" fill="none" stroke="#1b8abc" stroke-opacity=".45" stroke-width="2"/>
+        </g>
+        <circle cx="210" cy="210" r="162" fill="none" stroke="#e8ffff" stroke-opacity=".56" stroke-width="1.7"/>
+        <path d="M75 160c12-36 37-66 69-84" fill="none" stroke="#ffffff" stroke-opacity=".72" stroke-width="3" stroke-linecap="round"/>
+      </svg>
